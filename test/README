@@ -1,0 +1,191 @@
+
+This directory is intended for PlatformIO Test Runner and project tests.
+
+Unit Testing is a software testing method by which individual units of
+source code, sets of one or more MCU program modules together with associated
+control data, usage procedures, and operating procedures, are tested to
+determine whether they are fit for use. Unit testing finds problems early
+in the development cycle.
+
+More information about PlatformIO Unit Testing:
+- https://docs.platformio.org/en/latest/advanced/unit-testing/index.html
+
+
+
+#include <Arduino.h>
+#include <HardwareSerial.h>  // Comunicación UART con el módulo SIM808
+
+#include "GPRS_Functions.h"  // Funciones de configuración del GPRS
+
+const double LATITUDE_REFERENCE = -22.129688;   // Latitud de referencia para calcular la distancia del dispositivo
+const double LONGITUDE_REFERENCE = -51.408570;  // Longitud de referencia para calcular la distancia del dispositivo
+const double MAX_DISTANCE = 1000;               // Distancia límite utilizada para activar el envío de SMS de alerta de distancia, medida en metros
+
+HardwareSerial mySerial(1);  // Objeto para la comunicación UART con el módulo SIM808
+
+const String CELLNUMBER = "+5518999999999";  // Número de celular que recibe mensajes SMS de alerta relacionados con la distancia del dispositivo
+
+bool smsSent = false;         // Bandera que asegura que se envíe solo un SMS cuando el dispositivo esté muy lejos
+const int TIMEOUT_AT = 2000;  // Tiempo que se espera después del envío de un comando AT, utilizado en la función "sendAT"
+
+const int RX_PIN = 0;   // Pin RX serial que debe conectarse al TX del SIM808, se utiliza para configurar la variable "mySerial"
+const int TX_PIN = 22;  // Pin TX serial que debe conectarse al RX del SIM808, se utiliza para configurar la variable "mySerial"
+
+const int pinLed = 17;// Pin de señalización que se activa al mismo tiempo que se envía el SMS al celular
+const int BAUD_RATE = 115200;
+
+void setup() {
+    pinMode(pinLed, OUTPUT);
+
+    
+    if (!loraDisplayConfig())// Configura el Display LoRa
+        ESP.restart();
+
+    // Configura la velocidad de baudios utilizada por el monitor serial y el SIM808
+    serialConfig();
+
+    Serial.println("Esperando...");
+    showDisplay(0, "Esperando...", true);
+    delay(3000);
+
+    // Informa al SIM808 la velocidad de baudios utilizada, se recomienda ejecutar este programa por primera vez a una velocidad de 9600
+    if (!baudConfig())
+        ESP.restart();
+
+    // Configura el modo SMS como texto
+    if (!smsConfig()) {
+        showDisplay(0, "¡Error en la configuración del SMS!", true);
+        Serial.println("¡Error en la configuración del SMS!");
+        delay(3000);
+        ESP.restart();
+    }
+
+    showDisplay(0, "Configuración del SMS correcta", true);
+    Serial.println("Configuración del SMS correcta");
+
+    // Activa la función de GPS del módulo
+    if (!gpsConfig()) {
+        showDisplay(1, "¡Error en la configuración del GPS!", false);
+        Serial.println("¡Error en la configuración del GPS!");
+        delay(3000);
+        ESP.restart();
+    }
+    showDisplay(1, "Configuración del GPS correcta", false);
+    showDisplay(2, "Configurando módem...", false);
+    Serial.println("Configuración del GPS correcta, configurando módem...");
+
+    // Configura e inicializa el GPRS
+    if (!modemConfig(mySerial)) {
+        // Muestra en la consola y en el display
+        Serial.println("Fallo en la inicialización del módem");
+        showDisplay(3, "Fallo en la inicialización del módem", false);
+        delay(5000);
+        ESP.restart();
+    }
+    // Muestra en la consola y en el display
+    showDisplay(3, "Módem listo", false);
+    Serial.println("Módem listo");
+}
+
+void serialConfig() {
+    
+    Serial.begin(BAUD_RATE);// Establece la velocidad de baudios de la consola
+
+    // Configura la velocidad de baudios del ESP32 UART
+    mySerial.begin(BAUD_RATE, SERIAL_8N1, RX_PIN, TX_PIN);  // Esp32 lora 0 = RX, 22 = TX
+}
+
+
+bool smsConfig() {// Configuración de mensajes SMS
+
+    if (sendAT("AT+CMGF=1").indexOf("OK") < 0)// Establece el modo SMS como texto (0 = modo PDU, 1 = modo texto)
+        return false;
+
+    
+    return true;// Si tiene éxito, devuelve true
+}
+
+// Configuración relacionada con el GPS
+bool gpsConfig() {
+    if (sendAT("AT+CGNSPWR=1").indexOf("OK") >= 0)      // Enciende la fuente de energía del GNSS (1 = encendido, 0 = apagado)
+        if (sendAT("AT+CGPSINF=0").indexOf("OK") >= 0)  // Intenta obtener la ubicación GPS por primera vez
+            return true;
+
+    return false;
+}
+
+// Informa al SIM808 sobre la velocidad de baudios utilizada, se recomienda ejecutar este programa por primera vez a una velocidad de 9600
+bool baudConfig() {
+    // Si tiene éxito, devuelve true
+    if (sendAT("AT+IPR=" + String(BAUD_RATE)).indexOf("OK") >= 0)
+        return true;
+
+    return false;
+}
+
+void loop() {
+    String distance, la, lo;
+    float lat, lon;
+
+    // Intenta obtener los valores de GPS
+    if (sim808.getGPS(&lat, &lon))  // if(getGSMLocation(mySerial, &la, &lo))  En caso de una señal GPS débil, prueba utilizando la red GSM reemplazando este if
+    {
+        lat = la.toFloat();
+        lon = lo.toFloat();
+        Serial.println("Señal GPS OK. Valores obtenidos correctamente.");
+
+        // Verifica si el dispositivo supera la distancia límite
+        if (deviceIsTooFar(lat, lon, &distance)) {
+            // Bandera que permite enviar solo un mensaje SMS
+            if (!smsSent) {
+                // Intenta enviar el SMS
+                if (sim808.sendSMS(CELLNUMBER, "¡El dispositivo está muy lejos!"))
+                    Serial.println("El dispositivo está muy lejos - SMS enviado");
+                else
+                    Serial.println("El dispositivo está muy lejos - falló al enviar SMS");
+
+                showDisplay(0, "¡El dispositivo está muy lejos!", true);
+                digitalWrite(pinLed, HIGH);  // Enciende el LED para indicar que el dispositivo está muy lejos
+                smsSent = true;
+                delay(5000);
+            }
+        }
+
+        // Si se pudieron obtener los valores de GPS, mostrarlos en el display
+        showDisplay(0, "Latitud: " + String(lat, 6), true);
+        showDisplay(1, "Longitud: " + String(lon, 6), false);
+        showDisplay(2, "Distancia: " + distance + "m", false);
+    } else {
+        // Si no se pudieron obtener los valores, mostrar campos vacíos
+        Serial.println("Señal GPS no disponible. Valores no obtenidos.");
+        showDisplay(0, "Latitud: -", true);
+        showDisplay(1, "Longitud: -", false);
+        showDisplay(2, "Distancia: -", false);
+        /*
+        showDisplay(0, "Latitud: " + String(LATITUDE_REFERENCE, 6), true);
+        showDisplay(1, "Longitud: " + String(LONGITUDE_REFERENCE, 6), false);
+        showDisplay(2, "Distancia: 328m", false); */
+    }
+
+    flag = !flag;
+    if (flag)
+        showDisplay(5, "(Refrescar)", false);
+    delay(3000);
+}
+// Calcula la distancia a la que se encuentra el dispositivo, teniendo en cuenta la curvatura de la Tierra (valor devuelto en metros)
+double getDistance(float lat, float lon) {
+    double dist = 60 * ((acos(sin(LATITUDE_REFERENCE * (PI / 180)) * sin(lat * (PI / 180)) + cos(LATITUDE_REFERENCE * (PI / 180)) * cos(lat * (PI / 180)) * cos(abs((lon - LONGITUDE_REFERENCE)) * (PI / 180)))) * (180 / PI));
+    return dist * 1852;
+}
+
+// Verifica si el dispositivo ha superado el límite de distancia
+bool deviceIsTooFar(float lat, float lon, String* distance) {
+    double dist = getDistance(lat, lon);
+
+    *distance = String(dist);
+
+    if (dist > MAX_DISTANCE)
+        return true;
+
+    return false;
+}
