@@ -66,15 +66,19 @@ void setup()
     }
 
     // sim808.enableGPS();
+    Serial_SIM_Module.println("AT+CGNSPWR=1");
 
-    // Serial.println("Configuración del GPS correcta, configurando módem...");
-    // Serial.println("Intentando obtener posicion de referencia");
-    // delay(15000);
-    // Serial.println("Posicion de referencia obtenida: "+ sim808.getGPSraw());
+    Serial.println("Configuración del GPS correcta, configurando módem...");
+    Serial.println("Intentando obtener posicion de referencia");
+    Serial.println("Signal quality: " + String(sim808.getSignalQuality()));
+    
+    delay(40000);
+    Serial.println("Posicion de referencia obtenida: "+ sim808.getGPSraw());
+    // Serial.println("Latitud: " + String(sim808.GPSdata.lat, 6));
 
-    /* float lat, lon;
+    float lat, lon;
     // Intenta obtener los valores de GPS
-    if(sim808.getGsmLocation(&lat, &lon))  {  // Obtiene la primera posicicon
+    if(sim808.getGPS(&lat, &lon))  {  // Obtiene la primera posicicon
         LATITUDE_REFERENCE = lat;
         LONGITUDE_REFERENCE = lon;
 
@@ -87,7 +91,7 @@ void setup()
     }
 
     Serial.println("Latitud: " + String(lat, 6));
-    Serial.println("Longitud: " + String(lon, 6)); */
+    Serial.println("Longitud: " + String(lon, 6)); 
 
     Serial.println("Intentando realizar conexion a la base de datos");
     if(sendHttpQuery() != 200){
@@ -104,14 +108,20 @@ int sendHttpQuery()
 {
     int statusCode = 500;
 
+    // int err = 0;
+    http.beginRequest();
+    
+
     Serial.print(F("Performing HTTP GET request... "));
-    int err = http.get(resource);
-    if (err != 0)
-    {
-        Serial.println(F("failed to connect"));
-        delay(10000);
-        return 400;
-    }
+    http.get(resource);
+    http.sendHeader("authorization", "pURzWbUHfRPJrOKoRTFnbTCrFAeBixKDmgjOJ85HqRDp47VWvSo1E2hsvZLjheCr");
+    http.endRequest();
+    // if (err != 0)
+    // {
+    //     Serial.println(F("failed to connect"));
+    //     delay(10000);
+    //     return 400;
+    // }
 
     int status = http.responseStatusCode();
     Serial.print(F("Response status code: "));
@@ -200,7 +210,20 @@ void loop()
     String distance, la, lo;
     float lat, lon;
 
-    delay(3000);
+    // Intenta obtener los valores de GPS
+    if(sim808.getGPS(&lat, &lon))  {  // Obtiene la primera posicicon
+        LATITUDE_REFERENCE = lat;
+        LONGITUDE_REFERENCE = lon;
+
+        Serial.println("Posicion inicial:");
+        Serial.println("Latitud: " + String(LATITUDE_REFERENCE, 6));
+        Serial.println("Longitud: " + String(LONGITUDE_REFERENCE, 6));
+
+    } else {
+        Serial.println("Error en el GPS");
+    }
+
+    delay(5000);
 }
 
 /* Calcula la distancia a la que se encuentra el dispositivo, teniendo en cuenta la curvatura de la Tierra (valor devuelto en metros)*/

@@ -49,8 +49,8 @@ const char apn[] = "wap.tmovil.cl";  // Tu APN
 const char user[] = "web";
 const char pass[] = "web";
 
-const char server[]   = "c2ba-190-5-38-105.ngrok-free.app";
-const char resource[] = "/";
+const char server[]   = "mongo-arduino-cim.taicrosxy.workers.dev";
+const char resource[] = "/api/ArduinoData";
 const int  port       = 80;
 
 
