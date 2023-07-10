@@ -2,6 +2,7 @@
 #include <HardwareSerial.h> // Comunicación UART con el módulo SIM808
 #include <SPI.h>
 #include <Wire.h>
+#include<DHT.h>
 
 #include "GPRS_Functions.h" // Funciones de configuración del GPRS
 
@@ -9,6 +10,20 @@ const double MAX_DISTANCE = 10; // Distancia límite utilizada para activar el e
 
 double LATITUDE_REFERENCE;
 double LONGITUDE_REFERENCE;
+
+double flow; //Liters of passing water volume
+unsigned long pulse_freq; //Frequency of pulses (interrupt function)
+const int FLOW_PIN = 25; //Pin connected to the sensor
+unsigned long currentTime;
+unsigned long lastTime;
+
+#define DHT_PIN 14
+#define DHTTYPE DHT11
+DHT dht(DHT_PIN, DHTTYPE);
+
+#define PIR_PIN 27
+int pirState = LOW;
+int val = 0;
 
 // set GSM PIN, if any
 #define GSM_PIN "1234"
@@ -27,6 +42,8 @@ bool baudConfig();
 bool deviceIsTooFar(float lat, float lon, String *distance);
 void ping();
 void simpleHttp();
+void readFlow();
+void pulse();
 
 void setup()
 {
@@ -47,14 +64,7 @@ void setup()
         sim808.simUnlock(GSM_PIN);
     }
     
-    // Serial.println("Configuración del SMS correcta");
-
-    // Activa la función de GPS del módulo
-    // if (!gpsConfig()) {
-    //     Serial.println("¡Error en la configuración del GPS!");
-    //     delay(1000);
-    //     ESP.restart();
-    // }
+    Serial.println("Configuración del SMS correcta");
 
     // Configura e inicializa el GPRS
     if (!modemConfig())
@@ -65,6 +75,7 @@ void setup()
         ESP.restart();
     }
 
+    // Activa la función de GPS del módulo
     // sim808.enableGPS();
     Serial_SIM_Module.println("AT+CGNSPWR=1");
 
@@ -94,14 +105,82 @@ void setup()
     Serial.println("Longitud: " + String(lon, 6)); 
 
     Serial.println("Intentando realizar conexion a la base de datos");
-    if(sendHttpQuery() != 200){
-        Serial.println("Error en la conexion a la base de datos");
+    // if(sendHttpQuery() != 200){
+    //     Serial.println("Error en la conexion a la base de datos");
+    // }
+
+    Serial.println("Conexion a la base de datos exitosa");
+
+    // configuracion del sensor de flujo de agua
+    pinMode(FLOW_PIN, INPUT);
+    attachInterrupt(digitalPinToInterrupt(FLOW_PIN), pulse, RISING);
+    currentTime = millis();
+    lastTime = currentTime;
+
+    Serial.println("Configuracion del sensor de flujo de agua exitosa");
+
+    // configuracion del sensor de temperatura y humedad
+    dht.begin();
+    delay(5000);
+
+    float t = dht.readTemperature();
+    float h = dht.readHumidity();
+
+    if(isnan(t) || isnan(h)){
+        Serial.println("Error en la lectura del sensor de temperatura y humedad");
+    }else{
+        Serial.println("Temperatura: " + String(t) + "°C");
+        Serial.println("Humedad: " + String(h) + "%");
+        Serial.println("Configuracion del sensor de temperatura y humedad exitosa");
     }
 
-  
+    // configuracion del sensor PIR
+    pinMode(PIR_PIN, INPUT);
 
     // Muestra en la consola
     Serial.println("Módem listo");
+}
+
+void pulse(){
+    pulse_freq++;
+}
+
+void readFlow(){
+    flow = .00225 * pulse_freq;
+    Serial.print("Flow: ");
+    Serial.print(flow,DEC);
+    Serial.println(" L");
+    // delay(500); // 500ms entre cada lectura
+}
+
+void readTemperatureAndHumidity(){
+    float t = dht.readTemperature();
+    float h = dht.readHumidity();
+
+    if(isnan(t) || isnan(h)){
+        Serial.println("Error en la lectura del sensor de temperatura y humedad");
+    }else{
+        Serial.println("Temperatura: " + String(t) + "°C");
+        Serial.println("Humedad: " + String(h) + "%");
+        // inserte codigo para guardar los datos en sd 
+    }
+}
+
+void readPIR(){
+    val = digitalRead(PIR_PIN);
+    if (val == HIGH){   //si está activado 
+        if (pirState == LOW)  //si previamente estaba apagado
+        {
+        Serial.println("Sensor activado");
+        pirState = HIGH;
+        }
+    } else {   //si esta desactivado
+        if (pirState == HIGH)  //si previamente estaba encendido
+        {
+        Serial.println("Sensor parado");
+        pirState = LOW;
+        }
+    }
 }
 
 int sendHttpQuery()
@@ -210,18 +289,43 @@ void loop()
     String distance, la, lo;
     float lat, lon;
 
-    // Intenta obtener los valores de GPS
-    if(sim808.getGPS(&lat, &lon))  {  // Obtiene la primera posicicon
-        LATITUDE_REFERENCE = lat;
-        LONGITUDE_REFERENCE = lon;
+    // // Intenta obtener los valores de GPS
+    // if(sim808.getGPS(&lat, &lon))  {  // Obtiene la primera posicicon
+    //     LATITUDE_REFERENCE = lat;
+    //     LONGITUDE_REFERENCE = lon;
 
-        Serial.println("Posicion inicial:");
-        Serial.println("Latitud: " + String(LATITUDE_REFERENCE, 6));
-        Serial.println("Longitud: " + String(LONGITUDE_REFERENCE, 6));
+    //     Serial.println("Posicion inicial:");
+    //     Serial.println("Latitud: " + String(LATITUDE_REFERENCE, 6));
+    //     Serial.println("Longitud: " + String(LONGITUDE_REFERENCE, 6));
 
-    } else {
-        Serial.println("Error en el GPS");
-    }
+    // } else {
+    //     Serial.println("Error en el GPS");
+    // }
+
+    Serial.println("Midiendo Flujo");
+    currentTime = millis();
+   // Every second, calculate and print L/Min
+   if(currentTime >= (lastTime + 1000))
+   {
+      lastTime = currentTime; 
+      // Pulse frequency (Hz) = 7.5Q, Q is flow rate in L/min.
+      flow = (pulse_freq / 7.5); 
+      pulse_freq = 0; // Reset Counter
+      Serial.print(flow, DEC); 
+      Serial.println(" L/Min");
+      
+   }
+
+   // para medir la cantidad de agua que se ha consumido
+//    flow = .00225 * pulse_freq;
+//    Serial.print(flow, DEC);
+//    Serial.println("L");
+//    delay(500);
+
+    readTemperatureAndHumidity();
+
+    readPIR();
+
 
     delay(5000);
 }
