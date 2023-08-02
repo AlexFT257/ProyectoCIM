@@ -3,5 +3,8 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
-
+.vscode/*
+.vscode/tasks.json
+.vscode/settings.json
+.vscode
 .fake

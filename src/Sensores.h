@@ -5,7 +5,9 @@ unsigned long currentTime;
 unsigned long lastTime;
 
 #define FLOW_PIN 25   // Pin connected to the sensor
-#define PIR_PIN 27
+#define PIR_PIN 27 //6 en azul
+#define BUTTON_PIN 17 //4 en azul
+
 #define DHT_PIN 14
 
 #define DHTTYPE DHT11
@@ -53,6 +55,7 @@ void DHTSensor() {
 */
 void PIRSensor() {
     pinMode(PIR_PIN, INPUT);
+    pinMode(BUTTON_PIN, INPUT_PULLDOWN);
     Serial.println("Configuracion del sensor PIR exitosa");
 }
 
@@ -116,4 +119,15 @@ int readPIR() {
         }
     }
     return val;
+}
+
+int readButton() {
+    val = digitalRead(BUTTON_PIN);
+    if(val == HIGH){
+        Serial.println("botn");
+        return 1;
+    }
+    Serial.println("no boton");
+    return 0;
+    
 }
