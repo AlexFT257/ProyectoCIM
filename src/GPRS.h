@@ -92,19 +92,46 @@ bool modemConfig() {
 int sendHttpQuery() {
     int statusCode = 500;
     Serial.println("Intentando realizar conexion a la base de datos...");
-
-    http.beginRequest();
     
-    http.get(resource);
+    //The R() is to write json easier
+    char json[] = char json[] = R"(
+    {
+      "arduinoData": {
+        "type": "Position",
+        "data": [
+          {
+            "latitude": 3,
+            "longitude": 3
+          },
+          {
+            "latitude": 4,
+            "longitude": 4
+          }
+        ]
+      }
+    }
+    )";
+    
+    http.beginRequest(); 
+    
+    http.post(resource);
     http.sendHeader("authorization", "pURzWbUHfRPJrOKoRTFnbTCrFAeBixKDmgjOJ85HqRDp47VWvSo1E2hsvZLjheCr");
+    http.sendHeader("Content-Type", "application/json");
+    http.sendHeader("Content-Length", strlen(json));
+    http.beginBody();
+    http.print(json);
+    
     http.endRequest();
+    
+    delay(3000);
+    
     // if (err != 0)
     // {
     //     Serial.println(F("failed to connect"));
     //     delay(10000);
     //     return 400;
     // }
-
+    
     int status = http.responseStatusCode();
     Serial.print(F("Codigo de respuesta: "));
     Serial.println(status);
