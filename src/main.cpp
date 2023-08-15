@@ -12,15 +12,15 @@
 #include "Sensores.h" // Funciones de configuración de los sensores
 
 // pines de la maqueta
-#define HUMIDIFICADOR_PIN 13
+//#define HUMIDIFICADOR_PIN 13
 #define BOMBA_PIN 14       //   7 en azul
-#define RECUPERADOR_PIN 16 // 5
+#define RECUPERADOR_PIN 25 // 3
 
 #define ROCIADOR_PIN 26
 
 #define RX_PIN \
     17 // Pin RX serial que debe conectarse al TX del SIM808, se utiliza para
-       // configurar la variable "mySerial"
+       // configurar la variable "mySerial" 
 #define TX_PIN \
     16 // Pin TX serial que debe conectarse al RX del SIM808, se utiliza para
        // configurar la variable "mySerial"
@@ -50,14 +50,14 @@ void setup()
 {
     Serial.begin(BAUD_RATE); // Establece la velocidad de baudios de la consola
 
-    /* if (!setUpDataLogger())
+    if (!setUpDataLogger())
     {
         delay(2000);
         ESP.restart();
     }
     else
     {
-        File file = SD.open("/data.txt");
+        /* File file = SD.open("/data.txt");
         if (!file)
         {
             Serial.println("El archivo no existe");
@@ -68,12 +68,12 @@ void setup()
         {
             Serial.println("El archivo ya existe");
         }
-        file.close();
+        file.close(); */
     }
- */
+
     delay(1000);
 
-   /*  Serial_SIM_Module.begin(
+    /* Serial_SIM_Module.begin(
         BAUD_RATE, SERIAL_8N1, RX_PIN,
         TX_PIN); // Configura la velocidad de baudios del ESP32 UART
 
@@ -97,41 +97,43 @@ void setup()
     {
         Serial.println("Fallo en la inicialización del módem");
         delay(2000);
-        ESP.restart();
+        //ESP.restart();
     }
 
     Serial_SIM_Module.println("AT+CGNSPWR=1");
-    Serial.println("Calidad de la señal: " + String(sim808.getSignalQuality())); */
+    Serial.println("Calidad de la señal: " + String(sim808.getSignalQuality()));
 
-    /*  Serial.println("Activando GPS...");
+    Serial.println("Activando GPS...");
 
-     if (!sim808.enableGPS()) {  // Activa la función de GPS del módulo
-         Serial.println("Fallo en la inicialización del GPS");
-     }
+    if (!sim808.enableGPS())
+    { // Activa la función de GPS del módulo
+        Serial.println("Fallo en la inicialización del GPS");
+    }
 
-     delay(40000);
+    delay(40000);
 
-     Serial.println("GPS Activado");
-     Serial.println("Intentando obtener posicion de referencia"); */
+    Serial.println("GPS Activado");
+    Serial.println("Intentando obtener posicion de referencia");
 
-    /* if(!getGPSPos(&LATITUDE_REFERENCE, &LONGITUDE_REFERENCE)){
+    if (!getGPSPos(&LATITUDE_REFERENCE, &LONGITUDE_REFERENCE))
+    {
         Serial.println("Fallo en la inicialización del GPS");
         delay(500);
-        ESP.restart();
-    }else{
+        //ESP.restart();
+    }
+    else
+    {
         Serial.println("Posicion inicial:");
         Serial.println("Latitud: " + String(LATITUDE_REFERENCE, 6));
         Serial.println("Longitud: " + String(LONGITUDE_REFERENCE, 6));
     }
-
-    */
-
+ */
     // if(sendHttpQuery() != 200){
     //     Serial.println("Error en la conexion a la base de datos");
     // }
 
     // setup de los sensores
-    // FlowSensor();
+    FlowSensor();
     // DHTSensor();
     PIRSensor();
 
@@ -147,11 +149,9 @@ void setup()
     // Muestra en la consola
     Serial.println("Dispositivo configurado exitosamente");
 
-    // xTaskCreate(HeavyTasks, "HeavySensors", 4096, NULL, tskIDLE_PRIORITY,
-    // NULL);
+    xTaskCreate(HeavyTasks, "HeavySensors", 4096, NULL, tskIDLE_PRIORITY, NULL);
     delay(3000);
-    xTaskCreatePinnedToCore(FastSensors_Task, "FastSensors", 10000, NULL, 1,
-                            &FastSensors, 1);
+    xTaskCreatePinnedToCore(FastSensors_Task, "FastSensors", 10000, NULL, 1, &FastSensors, 1);
     // xTaskCreatePinnedToCore(SlowSensors_Task, "SlowSensors", 10000, NULL, 1,
     // &SlowSensors, 1);
 }
@@ -198,34 +198,53 @@ void HeavyTasks(void *pvParameters)
 {
     for (;;)
     {
-        /* float lat, lon;
+        float lat, lon;
         String dist = "";
-        // getGPSPos(&lat, &lon);
+        getGPSPos(&lat, &lon);
+        Serial.println("Latitud: " + String(lat) + " Longitud: " + String(lon));
 
-        if (deviceIsTooFar(lat, lon, &dist)) {
+        if (deviceIsTooFar(lat, lon, &dist))//
+        {
             Serial.println("El dispositivo se esta alejando");
-            for (;;) {
-                int res = sendHttpQuery();  // MANDAR DATA
+            for (;;)
+            {
 
-                if (res != 200) {
+                String json = R"(
+                    {
+                        "arduinoData": {
+                            "type": "Position",
+                            "data": {
+                                "latitude": )" +
+                              String(lat) + R"(,
+                                "longitude": )" +
+                              String(lon) + R"(
+                            }
+                        }
+                    }
+                )";
+
+                int res = sendHttpQuery(json); // MANDAR DATA
+
+                if (res != 200)
+                {
                     continue;
-                } else {
+                }
+                else
+                {
                     break;
                 }
             }
-
-        }else{
-            //MANDAR INFORMACION NORMAL EN CASO DE ESTAR EN LA HORA
         }
-
-
-        */
+        else
+        {
+            // MANDAR INFORMACION NORMAL EN CASO DE ESTAR EN LA HORA
+        }
 
         if (nextSchedule <= checkLastTime())
         {
             for (;;)
             {
-                int res = sendHttpQuery(); // MANDAR DATA
+                int res = 200; // sendHttpQuery(); // MANDAR DATA
 
                 if (res != 200)
                 {
@@ -240,44 +259,60 @@ void HeavyTasks(void *pvParameters)
             }
         }
 
-        delay(1000);
+        delay(10000);
     }
 }
 
 void FastSensors_Task(void *pvParameters)
-{   
-    const int bombaDelay = 3000, recuperadorDelay = 20000;
+{
+    const int bombaDelay = 9, recuperadorDelay = 35;
     bool pirActivated = false;
 
-    for (;;) {
-        // double flow = getFlow();
+    for (;;)
+    {
+
         int pirValue = readPIR();
         int buttonValue = readButton();
         
-        if (pirValue == 1) {
-            if(!pirActivated){
+        if (pirValue == 1)
+        {
+            if (!pirActivated)
+            {
                 personasDetectadas++;
                 Serial.println("Personas detectadas: " + String(personasDetectadas));
                 pirActivated = true;
-            }   
-            
-        }else{ 
+            }
+        }
+        else
+        {
             pirActivated = false;
         }
 
         Serial.println(buttonValue);
-        if(buttonValue == 1){
+        if (buttonValue == 1)
+        {
             botonesDetectados++;
             digitalWrite(BOMBA_PIN, LOW); // LOW porque funciona alrevez
-            delay(bombaDelay);
+            int i = 0;
+            while(i++ < bombaDelay){
+                delay(1000);
+                double flow = getFlow();
+                Serial.println("Flujo: " + String(flow));
+        
+            }
+            i = 0;
             Serial.println("prendiendo bomba");
             digitalWrite(BOMBA_PIN, HIGH);
             digitalWrite(RECUPERADOR_PIN, LOW);
             Serial.println("prendiendo Recuperador");
-            delay(recuperadorDelay);
-            
+             while(i++ <= recuperadorDelay){
+                delay(1000);
+                //double flow = getFlow();
+                //Serial.println("Flujo: " + String(flow));
+            }
+
             digitalWrite(RECUPERADOR_PIN, HIGH);
-            delay(33000);
+            delay(1000);
         }
 
         delay(500);
@@ -294,22 +329,4 @@ void SlowSensors_Task(void *pvParameters)
     }
 }
 
-void Sequence()
-{
-    // 0. leer sensores
-    double flow = getFlow();
-    float t, h;
-    // 1. encender humidificador
-    digitalWrite(BOMBA_PIN, HIGH);
-    delay(1000);
-    // 2. encender bomba
-    digitalWrite(HUMIDIFICADOR_PIN, HIGH);
-    delay(1000);
-    // 3. encender rociador
-    digitalWrite(ROCIADOR_PIN, HIGH);
-    delay(1000);
-    // leer sensores
-    flow = getFlow();
-    getTemperatureAndHumidity(&t, &h);
-    // guardar datos en la sd
-}
+

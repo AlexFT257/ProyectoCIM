@@ -94,7 +94,7 @@ bool setUpDataLogger() {
     }
 
     // Inicializar tarjeta SD
-    SD.begin(SD_CS);
+    /* SD.begin(SD_CS);
     if (!SD.begin(SD_CS)) {
         Serial.println("Falló el montaje de la tarjeta");
         return false;
@@ -113,7 +113,7 @@ bool setUpDataLogger() {
         Serial.println("ERROR - ¡Falló la inicialización de la tarjeta 5D!");
         return false;
     }
-    Serial.println("Tarjeta SD configurada");
+    Serial.println("Tarjeta SD configurada"); */
 
     return true;
 }

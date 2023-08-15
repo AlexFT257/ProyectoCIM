@@ -4,9 +4,9 @@ unsigned long pulse_freq;  // Frequency of pulses (interrupt function)
 unsigned long currentTime;
 unsigned long lastTime;
 
-#define FLOW_PIN 25   // Pin connected to the sensor
+#define FLOW_PIN 26   //2 Pin connected to the sensor
 #define PIR_PIN 27 //6 en azul
-#define BUTTON_PIN 17 //4 en azul
+#define BUTTON_PIN 13 //9 en azul
 
 #define DHT_PIN 14
 
@@ -25,8 +25,8 @@ void pulse() { pulse_freq++; }
 void FlowSensor() {
     pinMode(FLOW_PIN, INPUT);
     attachInterrupt(digitalPinToInterrupt(FLOW_PIN), pulse, RISING);
-    currentTime = millis();
-    lastTime = currentTime;
+    //currentTime = millis();
+    //lastTime = currentTime;
     Serial.println("Configuracion del sensor de flujo de agua exitosa");
 }
 
@@ -66,17 +66,23 @@ void PIRSensor() {
 */
 double getFlow(){
     Serial.println("Midiendo Flujo");
-    currentTime = millis();
+    //currentTime = millis();
     double flow = -1;
     // Every second, calculate and print L/Min
-    if (currentTime >= (lastTime + 1000)) {
-        lastTime = currentTime;
+    //if (currentTime >= (lastTime + 1000)) {
+    if(pulse_freq < 100){
+        //lastTime = currentTime;
         // Pulse frequency (Hz) = 7.5Q, Q is flow rate in L/min.
         double flow = (pulse_freq / 7.5);
+        Serial.println("SI HAY FLUJO - FREC " + String(pulse_freq, DEC));
         pulse_freq = 0;  // Reset Counter
         Serial.print(flow, DEC);
         Serial.println(" L/Min");
+    }else{
+        Serial.println("NO HAY FLUJO - FREC " + String(pulse_freq, DEC));
+        pulse_freq = 0;  // Reset Counter
     }
+
     return flow;
 }
 
@@ -120,7 +126,7 @@ int readPIR() {
     }
     return val;
 }
-
+             
 int readButton() {
     val = digitalRead(BUTTON_PIN);
     if(val == HIGH){

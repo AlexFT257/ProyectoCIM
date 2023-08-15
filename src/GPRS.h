@@ -45,6 +45,8 @@ const char server[]   = "mongo-arduino-cim.taicrosxy.workers.dev";
 const char resource[] = "/api/ArduinoData";
 const int  port       = 80;
 
+
+//mongoEndpointAPIKEY =  hDYzA5V8btEmWF0tH1Pe1E6MVolfd5QSzaVCmJjOaOxcGl9WUNdrW0bB54mHn3m8
 HardwareSerial Serial_SIM_Module(1);
 
 TinyGsm sim808(Serial_SIM_Module);
@@ -89,35 +91,18 @@ bool modemConfig() {
     return networkConnect();
 }
 
-int sendHttpQuery() {
+int sendHttpQuery(String json) {
     int statusCode = 500;
     Serial.println("Intentando realizar conexion a la base de datos...");
     
-    //The R() is to write json easier
-    char json[] = char json[] = R"(
-    {
-      "arduinoData": {
-        "type": "Position",
-        "data": [
-          {
-            "latitude": 3,
-            "longitude": 3
-          },
-          {
-            "latitude": 4,
-            "longitude": 4
-          }
-        ]
-      }
-    }
-    )";
+    
     
     http.beginRequest(); 
     
     http.post(resource);
     http.sendHeader("authorization", "pURzWbUHfRPJrOKoRTFnbTCrFAeBixKDmgjOJ85HqRDp47VWvSo1E2hsvZLjheCr");
     http.sendHeader("Content-Type", "application/json");
-    http.sendHeader("Content-Length", strlen(json));
+    http.sendHeader("Content-Length", json.length());
     http.beginBody();
     http.print(json);
     
