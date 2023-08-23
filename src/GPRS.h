@@ -41,26 +41,29 @@ const char apn[] = "wap.tmovil.cl";  // Tu APN
 const char user[] = "web";
 const char pass[] = "web";
 
-const char server[]   = "mongo-arduino-cim.taicrosxy.workers.dev";
+const char server[] = "mongo-arduino-cim.taicrosxy.workers.dev";
 const char resource[] = "/api/ArduinoData";
-const int  port       = 80;
+const int port = 80;
 
+const int id = 1;  // TODO CAMBIAR PARA CADA MAQUINA
+
+// mongoEndpointAPIKEY =  hDYzA5V8btEmWF0tH1Pe1E6MVolfd5QSzaVCmJjOaOxcGl9WUNdrW0bB54mHn3m8
 HardwareSerial Serial_SIM_Module(1);
 
 TinyGsm sim808(Serial_SIM_Module);
 TinyGsmClient client(sim808);
-HttpClient    http(client, server, port);  
+HttpClient http(client, server, port);
 
 bool networkConnect() {
     Serial.print("Esperando red...");
     if (!sim808.waitForNetwork()) {
         Serial.println("Falló el modem");
-        return false;
+        //return false;
     }
 
     if (sim808.isNetworkConnected()) {
         Serial.println("----> Network connected");
-    }
+    } 
 
     Serial.print("Conectando a ");
     Serial.print(apn);
@@ -79,7 +82,6 @@ bool networkConnect() {
 
 // Configura el módem GPRS
 bool modemConfig() {
-
     // Inicia el módem
     Serial.println("Configurando el módem...");
     if (!sim808.restart())
@@ -89,21 +91,100 @@ bool modemConfig() {
     return networkConnect();
 }
 
-int sendHttpQuery() {
-    int statusCode = 500;
+String getArduinoDataJson(String data) {
+    return R"({ "arduinoData":  )" + data + R"(})";
+}
+
+String getPositionJson(float lat, float lon, int type) {
+    return R"(
+        {
+            "type": "Position",
+            "data": {
+                "latitude": )" +
+           String(lat) + R"(,
+                "longitude": )" +
+           String(lon) + R"(,
+                "type": )" +
+           String(type) + R"(
+            }
+        }
+        
+    )";
+}
+
+String getStadisticsJson(String statFile) {
+    File file = SD.open(statFile.c_str(), FILE_READ);
+    String data = "";
+
+    // PUEDE FALLAR EL BUFFER
+    if (file) {
+        while (file.available()) {
+            data += file.readStringUntil('\n')+"\n";
+        }
+        file.close();
+    }
+
+    Serial.println(data);
+
+    String json = R"(
+        {
+            "type": "Stadistics",
+            "data": [)";
+
+    int index = 0;
+
+    while (index < data.length()) {
+        int semicolonIndex = data.indexOf(";", index);
+        int newlineIndex = data.indexOf("\n", index);
+
+        if (semicolonIndex == -1 || newlineIndex == -1) {
+            break;
+        }
+
+        String date = data.substring(index, semicolonIndex);
+        String type = data.substring(semicolonIndex + 1, newlineIndex);
+        json += R"( { "date": ")" + date + R"(", "type": )" + type + R"( })" + (newlineIndex + 1 >= data.length() ? "" : ",");
+
+        index = newlineIndex + 1;
+    }
+
+    json += R"(] } )";
+
+    return json;
+}
+
+String getStatusJson(String status) {
+    return R"(
+        {
+            "type": "Status",
+            "data": {
+                "info": ")" +
+           status + R"("
+            }
+        }
+        
+    )";
+}
+
+int sendHttpQuery(String json) {
     Serial.println("Intentando realizar conexion a la base de datos...");
 
     http.beginRequest();
-    
-    http.get(resource);
-    http.sendHeader("authorization", "pURzWbUHfRPJrOKoRTFnbTCrFAeBixKDmgjOJ85HqRDp47VWvSo1E2hsvZLjheCr");
+    if (json == "") {
+        http.get(resource);
+        http.sendHeader("authorization", "pURzWbUHfRPJrOKoRTFnbTCrFAeBixKDmgjOJ85HqRDp47VWvSo1E2hsvZLjheCr");
+    } else {
+        http.post(resource);
+        http.sendHeader("authorization", "pURzWbUHfRPJrOKoRTFnbTCrFAeBixKDmgjOJ85HqRDp47VWvSo1E2hsvZLjheCr");
+        http.sendHeader("Content-Type", "application/json");
+        http.sendHeader("Content-Length", json.length());
+        http.beginBody();
+        http.print(json);
+    }
+
     http.endRequest();
-    // if (err != 0)
-    // {
-    //     Serial.println(F("failed to connect"));
-    //     delay(10000);
-    //     return 400;
-    // }
+
+    delay(3000);
 
     int status = http.responseStatusCode();
     Serial.print(F("Codigo de respuesta: "));
@@ -120,22 +201,9 @@ int sendHttpQuery() {
         Serial.println("    " + headerName + " : " + headerValue);
     }
 
-    /* int length = http.contentLength();
-    if (length >= 0) {
-        Serial.print(F("Content length is: "));
-        Serial.println(length);
-    }
-    if (http.isResponseChunked()) {
-        Serial.println(F("The response is chunked"));
-    } */
-
     String body = http.responseBody();
     Serial.println(F("Respuesta:"));
     Serial.println(body);
-
-    /* Serial.print(F("Body length is: "));
-    Serial.println(body.length()); */
-
 
     http.stop();
     Serial.println(F("Servidor desconectado"));
@@ -151,12 +219,12 @@ bool getGPSPos(float* latitud, float* longitud) {
     float lat, lon;
 
     // Intenta obtener los valores de GPS
-    if(sim808.getGPS(&lat, &lon))  {  // Obtiene la primera posicicon
+    if (sim808.getGPS(&lat, &lon)) {  // Obtiene la primera posicicon
         *latitud = lat;
         *longitud = lon;
 
         return true;
     } else {
         return false;
-    }   
+    }
 }
