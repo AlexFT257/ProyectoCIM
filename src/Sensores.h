@@ -66,20 +66,15 @@ void PIRSensor() {
 */
 double getFlow(){
     Serial.println("Midiendo Flujo");
-    //currentTime = millis();
-    double flow = -1;
-    // Every second, calculate and print L/Min
-    //if (currentTime >= (lastTime + 1000)) {
+    double flow = 0;
+
     if(pulse_freq < 100){
-        //lastTime = currentTime;
-        // Pulse frequency (Hz) = 7.5Q, Q is flow rate in L/min.
         double flow = (pulse_freq / 7.5);
-        Serial.println("SI HAY FLUJO - FREC " + String(pulse_freq, DEC));
         pulse_freq = 0;  // Reset Counter
         Serial.print(flow, DEC);
         Serial.println(" L/Min");
     }else{
-        Serial.println("NO HAY FLUJO - FREC " + String(pulse_freq, DEC));
+        Serial.println("Fallo en flujo " + String(pulse_freq, DEC));
         pulse_freq = 0;  // Reset Counter
     }
 
@@ -133,7 +128,6 @@ int readButton() {
         Serial.println("botn");
         return 1;
     }
-    Serial.println("no boton");
     return 0;
     
 }

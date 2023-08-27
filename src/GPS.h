@@ -2,8 +2,8 @@
 
 const float MAX_DISTANCE = 10;  // Distancia límite utilizada para activar el envío de alerta de distancia, medida en metros
 
-float LATITUDE_REFERENCE;
-float LONGITUDE_REFERENCE;
+float LATITUDE_REFERENCE = 0;
+float LONGITUDE_REFERENCE = 0;
 
 
 double getDistance(float lat, float lon) {

@@ -9,6 +9,30 @@ RTC_DS1307 rtc;
 DateTime lastValidDate;
 DateTime nextSchedule;
 
+String statFile;
+
+// funcion para obtener la fecha actual
+// @return String fecha en formato legible
+String getDateToFile() {
+    DateTime now = rtc.now();
+    return String(now.year()) + "_" + String(now.month()) + "_" + String(now.day()) + "T" + String(now.hour()) + "_" + String(now.minute()) + "_" + String(now.second());
+}
+
+// funcion para obtener la fecha y hora actual en formato String
+// @return String fecha y hora en formato legible
+String getDateTime() {
+    DateTime now = rtc.now();
+    return String(now.year()) + "-" + String(now.month()) + "-" + String(now.day()) + "T" + String(now.hour()) + ":" + String(now.minute()) + ":" + String(now.second());
+}
+
+// funcion para obtener la fecha y hora del datetime en formato String
+// @param date fecha y hora a convertir
+// @return String fecha y hora en formato legible
+String getDateTime(DateTime date) {
+    return String(date.year()) + "-" + String(date.month()) + "-" + String(date.day()) + "T" + String(date.hour()) + ":" + String(date.minute()) + ":" + String(date.second());
+}
+
+
 /*  Escribir en la tarjeta SD
  @param fs tarjeta SD
  @param path ruta del archivo
@@ -40,7 +64,6 @@ Anexar datos a la tarjeta SD
  */
 void appendFile(fs::FS& fs, const char* path, const char* message) {
     // Serial.printf("Appending to file: %s\n", path);
-
     File file = fs.open(path, FILE_APPEND);
     if (!file) {
         Serial.println("Error al abrir el archivo para adjuntar");
@@ -62,12 +85,20 @@ void saveToSDCard(String file, String toSave) {
     appendFile(SD, ("/" + file).c_str(), toSave.c_str());
 }
 
-void setNextConection() {
-    if (nextSchedule.hour() == 12) {
-        nextSchedule = DateTime(nextSchedule.year(), nextSchedule.month(), nextSchedule.day(), 23, 59, 0);
-    } else {
-        nextSchedule = DateTime(nextSchedule.year(), nextSchedule.month(), nextSchedule.day() + 1, 12, 0, 0);
-    }
+
+void setNextConection(int hoursInterval) {
+    nextSchedule = rtc.now().unixtime() + 60; //CHECK EVERY MINUTE
+
+    /* int currentHour = nextSchedule.hour();
+    int nextHour = (currentHour + hoursInterval) % 24;  // Calculate the next hour
+
+    // Calculate the next scheduled time based on the specified interval
+    DateTime nextSchedule = DateTime(nextSchedule.year(), nextSchedule.month(), nextSchedule.day(), nextHour, 0, 0);
+
+    // If the next hour is less than the current hour, it means we've crossed into the next day
+    if (nextHour < currentHour) {
+        nextSchedule = nextSchedule + TimeSpan(1, 0, 0, 0);  // Add one day
+    } */
 }
 
 bool setUpDataLogger() {
@@ -94,7 +125,7 @@ bool setUpDataLogger() {
     }
 
     // Inicializar tarjeta SD
-    /* SD.begin(SD_CS);
+    SD.begin(SD_CS);
     if (!SD.begin(SD_CS)) {
         Serial.println("Falló el montaje de la tarjeta");
         return false;
@@ -113,23 +144,28 @@ bool setUpDataLogger() {
         Serial.println("ERROR - ¡Falló la inicialización de la tarjeta 5D!");
         return false;
     }
-    Serial.println("Tarjeta SD configurada"); */
+    Serial.println("Tarjeta SD configurada");
+
+    // crea  el directorio para almacenar el registro pulsos
+    if (!SD.exists("/Stadistics")) {
+        SD.mkdir("/Stadistics");
+    }
+
+    // comprueba si existe el archivo de registro de pulsos
+    statFile = "/Stadistics/" + getDateToFile() + ".txt";
+    if (!SD.exists(statFile)) {
+        // si no existe, lo crea
+        File file = SD.open(statFile, FILE_WRITE);
+        if (!file) {
+            Serial.println("No se pudo crear el archivo");
+            return false;
+        }
+        file.close();
+    }
+
+    setNextConection(12);
 
     return true;
-}
-
-// funcion para obtener la fecha y hora actual en formato String
-// @return String fecha y hora en formato legible
-String getDateTime() {
-    DateTime now = rtc.now();
-    return String(now.year()) + "-" + String(now.month()) + "-" + String(now.day()) + " " + String(now.hour()) + ":" + String(now.minute()) + ":" + String(now.second());
-}
-
-// funcion para obtener la fecha y hora del datetime en formato String
-// @param date fecha y hora a convertir
-// @return String fecha y hora en formato legible
-String getDateTime(DateTime date) {
-    return String(date.year()) + "-" + String(date.month()) + "-" + String(date.day()) + " " + String(date.hour()) + ":" + String(date.minute()) + ":" + String(date.second());
 }
 
 // funcion para obtener la fecha y hora actual (usar antes de usar cualquier otra funcion de fecha y hora)
@@ -137,6 +173,7 @@ String getDateTime(DateTime date) {
 DateTime checkLastTime() {
     DateTime now = rtc.now();
     uint32_t diff = now.unixtime() - lastValidDate.unixtime();
+
     if (diff >= 0 && diff <= 600 + 60) {
         lastValidDate = now;
     } else {
@@ -146,5 +183,6 @@ DateTime checkLastTime() {
         rtc.adjust(lastValidDate);
         Serial.println("Fecha ajustada: " + getDateTime(lastValidDate));
     }
+    // Serial.println(getDateTime(lastValidDate));
     return lastValidDate;
 }
