@@ -218,7 +218,7 @@ void HeavyTasks(void* pvParameters) {
 }
 
 void FastSensors_Task(void* pvParameters) {
-    const int bombaDelay = 9, recuperadorDelay = 35;
+    const int bombaDelay = 9, recuperadorDelay = 20;
     bool pirActivated = false;
 
     // probar
