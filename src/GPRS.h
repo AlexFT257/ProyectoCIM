@@ -147,8 +147,8 @@ String getPositionJson(float lat, float lon, int type) {
         {
             "type": "Position",
             "data": {
-                "latitude": )" + String(lat) + R"(,
-                "longitude": )" + String(lon) + R"(,
+                "latitude": )" + String(lat,12) + R"(,
+                "longitude": )" + String(lon,12) + R"(,
                 "type": )" + String(type) + R"(,
                 "date": ")" + getDateTime() + R"("
             }
