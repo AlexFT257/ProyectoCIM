@@ -19,8 +19,8 @@ pass: clarochile
 
 MOVISTAR=====
 APN: wap.tmovil.cl
-user: web
-pass: web
+user: wap
+pass: wap
 MCC: 730
 MNC: 02
 Tipo de autenticación: PAP
@@ -38,14 +38,15 @@ Proxy MMS: 129.192.129.104:8080
 */
 
 const char apn[] = "wap.tmovil.cl";  // Tu APN
-const char user[] = "web";
-const char pass[] = "web";
+const char user[] = "wap";
+const char pass[] = "wap";
 
 const char server[] = "mongo-arduino-cim.taicrosxy.workers.dev";
 const char resource[] = "/api/ArduinoData";
 const int port = 80;
 
-const int id = 1;  // TODO CAMBIAR PARA CADA MAQUINA
+const String otaName = "CIMARDUINOAL2";
+const int id = 2;  // TODO CAMBIAR PARA CADA MAQUINA
 bool sendingHTTP = false;
 
 // mongoEndpointAPIKEY =  hDYzA5V8btEmWF0tH1Pe1E6MVolfd5QSzaVCmJjOaOxcGl9WUNdrW0bB54mHn3m8
@@ -118,6 +119,7 @@ String getStadisticsJson(String statFile) {
     String json = R"(
         {
             "type": "Stadistics",
+            "id":)"+String(id)+R"(",
             "data": [)";
 
     int index = 0;
@@ -146,6 +148,7 @@ String getPositionJson(float lat, float lon, int type) {
     return R"(
         {
             "type": "Position",
+            "id":")"+String(id)+R"(",
             "data": {
                 "latitude": )" + String(lat,12) + R"(,
                 "longitude": )" + String(lon,12) + R"(,
@@ -161,6 +164,7 @@ String getStatusJson(String status, int type) {
     return R"(
         {
             "type": "Status",
+            "id":")"+String(id)+R"(",
             "data": {
                 "info": ")" + status + R"(",
                 "type": )" + String(type) + R"(,

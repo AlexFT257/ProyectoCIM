@@ -6,6 +6,9 @@
 #include <SPI.h>
 #include <Wire.h>
 
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+
 #include "DataLogger.h"
 #include "GPRS.h"     // Funciones de configuración del GPRS
 #include "GPS.h"      //Funciones de GPS
@@ -14,7 +17,7 @@
 // pines de la maqueta
 // #define HUMIDIFICADOR_PIN 13
 #define BOMBA_PIN 25       //   7 en azul
-#define AUDIO_PIN 25      // 8    3 es 25
+#define AUDIO_PIN 25       // 8    3 es 25
 #define RECUPERADOR_PIN 12 // 8    3 es 25
 
 #define ROCIADOR_PIN 26 //
@@ -31,21 +34,181 @@ int personasDetectadas = 0, botonesDetectados = 0, buttonValue = 0;
 
 float flowProm; // Promedio del flow
 
-TaskHandle_t HeavySensors;
 TaskHandle_t FastSensors;
 TaskHandle_t SlowSensors;
 
 // GSM PIN
-#define GSM_PIN "1111"
-
-void writeFile(fs::FS &fs, const char *path, const char *message);
-void appendFile(fs::FS &fs, const char *path, const char *message);
+#define GSM_PIN "1234"
 
 void FastSensors_Task(void *);
-// void SlowSensors_Task(void*);
-void HeavyTasks(void *);
+void SlowSensors_Task(void *);
 
 void Ping();
+
+void correr()
+{
+    Serial.println("AAAA");
+    // Check if data is available from the SIM808 module
+    while (Serial_SIM_Module.available())
+    {
+        // Read and process data from the module
+        char incomingChar = Serial_SIM_Module.read();
+        Serial.print(incomingChar);
+        // Handle incoming data here
+    }
+
+    // Your main code goes here
+}
+
+/* void sendATCommand(String command)
+{
+    Serial_SIM_Module.println(command);
+
+    // Wait for and read the response
+    delay(3000); // Adjust the delay as needed
+    while (Serial_SIM_Module.available())
+    {
+        String response = Serial_SIM_Module.readStringUntil('\n');
+        Serial.println(response);
+        // Process the response as needed
+    }
+} */
+
+/* void configureGPS()
+{
+    // Enable GPS
+    sendATCommand("AT+CGPSPWR=1");
+
+    // Configure GPS fix mode (e.g., set to auto mode)
+    sendATCommand("AT+CGPSRST=0");
+
+    // Set GPS NMEA data output format (e.g., RMC and GGA sentences)
+    sendATCommand("AT+CGPSOUT=32");
+
+    // Request GPS information
+    sendATCommand("AT+CGPSINFO=1");
+} */
+
+/* void configat()
+{
+    // Start the serial communication with the specified BAUD_RATE
+    // Serial_SIM_Module.begin(BAUD_RATE);
+
+    // Initialize other necessary settings if needed
+    // ...
+
+    Serial.println("creg mode:");
+    // Check network registration status
+    sendATCommand("AT+CREG?");
+    delay(3000);
+    correr();
+
+    Serial.println("attach the gprs:");
+    // attach GPRS
+    sendATCommand("AT+CGATT=1");
+    delay(3000);
+    correr();
+
+    // Set the APN (Access Point Name)
+
+    Serial.println("apn:");
+    // Replace "APN," "username," and "password" with actual values
+    sendATCommand("AT+CSTT=\"wap.tmovil.cl\",\"wap\",\"wap\"");
+    delay(3000);
+    correr();
+
+    Serial.println("creg mode:");
+    // Check network registration status
+    sendATCommand("AT+CREG?");
+    delay(3000);
+    correr();
+
+    // changing the operator manualiy
+    Serial.println("operator:");
+    sendATCommand("AT+COPS?");
+    delay(3000);
+    correr();
+
+
+    Serial.println("Check gprs attachment:");
+    // Check GPRS attachment status
+    sendATCommand("AT+CGATT?");
+    delay(3000);
+    correr();
+
+
+    //AT+COPS=1,0,"Network_Name"
+
+
+    //delay(10000);
+
+    Serial.println("ip:");
+    // Check IP address after establishing the connection
+    sendATCommand("AT+CIFSR");
+    delay(3000);
+    correr();
+    Serial.println("signal streng:");
+    // Check network signal strength
+    sendATCommand("AT+CSQ");
+    delay(3000);
+    correr();
+    // Configure the SIM808 module for GPS
+    delay(3000);
+    // configureGPS();
+} */
+
+IPAddress localIP(192, 168, 1, 1); // Static IP address for the SoftAP
+IPAddress subnet(255, 255, 255, 0);
+void setupOTA(void *parameter)
+{
+    Serial.println("Booting");
+    if(!WiFi.softAPConfig(localIP, localIP, subnet)){
+         Serial.println("bad softap ip...");
+    }
+    
+    WiFi.softAP(otaName, "cim12345");
+delay(5000);
+   /*  while (WiFi.isConnected() != WL_CONNECTED)
+    {
+        Serial.println("Connection Failed! Rebooting...");
+        delay(5000);
+    } */
+
+    // Port defaults to 8266
+    // ArduinoOTA.setPort(8266);
+
+    // Hostname defaults to esp8266-[ChipID]
+    // ArduinoOTA.setHostname("myesp8266");
+
+    // No authentication by default
+    // ArduinoOTA.setPassword((const char *)"123");
+
+    ArduinoOTA.onStart([]()
+                       { Serial.println("Start"); });
+    ArduinoOTA.onEnd([]()
+                     { Serial.println("\nEnd"); });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
+                          { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); });
+    ArduinoOTA.onError([](ota_error_t error)
+                       {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed"); });
+
+    ArduinoOTA.begin();
+    Serial.println("Ready");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+
+    while (true)
+    {
+        ArduinoOTA.handle();
+        // Other tasks or code here
+    }
+}
 
 void setup()
 {
@@ -58,23 +221,33 @@ void setup()
     }
 
     delay(1000);
-    /*
-    Serial_SIM_Module.begin(BAUD_RATE, SERIAL_8N1, RX_PIN, TX_PIN);  // Configura la velocidad de baudios del ESP32 UART
+    xTaskCreate(setupOTA, "OTAUpdateTask", 8192, NULL, 1, NULL);
 
-    Serial.println("Esperando...");  // Configura la velocidad de baudios utilizada por el monitor serial y el SIM808
+    /*
+    if(!sim808.init()){
+        Serial.println("Error al inicializar el GSM");
+    }*/
+
+    Serial_SIM_Module.begin(BAUD_RATE, SERIAL_8N1, RX_PIN, TX_PIN); // Configura la velocidad de baudios del ESP32 UART
+
+    Serial.println("Esperando..."); // Configura la velocidad de baudios utilizada por el monitor serial y el SIM808
     delay(3000);
 
-    sim808.setBaud(BAUD_RATE);  // Configura la velocidad de baudios utilizada por el monitor serial y el SIM808
+    sim808.setBaud(BAUD_RATE); // Configura la velocidad de baudios utilizada por el monitor serial y el SIM808
 
     // Unlock your SIM card with a PIN if needed
-    if (GSM_PIN && sim808.getSimStatus() != 3) {
+    if (GSM_PIN && sim808.getSimStatus() != 3)
+    {
         sim808.simUnlock(GSM_PIN);
     }
 
     Serial.println("GSM desbloqueada");
 
+    // configat();
+
     // Configura e inicializa el GPRS
-    if (!modemConfig()) {
+    if (!modemConfig())
+    {
         Serial.println("Fallo en la inicialización del módem");
         delay(2000);
         ESP.restart();
@@ -84,9 +257,15 @@ void setup()
 
     Serial.println("Activando GPS...");
 
+    if (sendHttpQuery("") != 200)
+    { // CHECK SERVER CONECTION
+        Serial.println("Error en la conexion a la base de datos");
+    }
 
-    while (LATITUDE_REFERENCE == 0) {
-        if (!sim808.enableGPS()) {  // Activa la función de GPS del módulo
+    while (LATITUDE_REFERENCE == 0)
+    {
+        if (!sim808.enableGPS())
+        { // Activa la función de GPS del módulo
             Serial.println("Fallo en la inicialización del GPS");
             delay(1000);
             continue;
@@ -96,13 +275,17 @@ void setup()
 
         Serial.println("GPS Activado");
 
-        while (LATITUDE_REFERENCE == 0) {
+        while (LATITUDE_REFERENCE == 0)
+        {
             Serial.println("Intentando obtener posicion de referencia");
 
-            if (!getGPSPos(&LATITUDE_REFERENCE, &LONGITUDE_REFERENCE)) {
+            if (!getGPSPos(&LATITUDE_REFERENCE, &LONGITUDE_REFERENCE))
+            {
                 Serial.println("Fallo en la inicialización del GPS");
                 delay(500);
-            } else {
+            }
+            else
+            {
                 Serial.println("Posicion inicial:");
                 Serial.println("Latitud: " + String(LATITUDE_REFERENCE, 12));
                 Serial.println("Longitud: " + String(LONGITUDE_REFERENCE, 12));
@@ -111,43 +294,31 @@ void setup()
         }
     }
 
-    if (sendHttpQuery("") != 200) {  // CHECK SERVER CONECTION
-        Serial.println("Error en la conexion a la base de datos");
-    }
-
-    */
     // setup de los sensores
     FlowSensor();
-     DHTSensor();
+    // DHTSensor();
     PIRSensor();
 
     // setup de los actuadores
-    // pinMode(HUMIDIFICADOR_PIN, OUTPUT);
+    // pinMode(ROCIADOR_PIN, OUTPUT);
     pinMode(BOMBA_PIN, OUTPUT);
-    //pinMode(RECUPERADOR_PIN, OUTPUT);
-    //pinMode(AUDIO_PIN, OUTPUT);
+    // pinMode(RECUPERADOR_PIN, OUTPUT);
 
-    //digitalWrite(RECUPERADOR_PIN, HIGH);
-    //digitalWrite(AUDIO_PIN, HIGH);
-
+    // digitalWrite(RECUPERADOR_PIN, HIGH);
     digitalWrite(BOMBA_PIN, HIGH);
-    
     // pinMode(ROCIADOR_PIN, OUTPUT);
 
     // Muestra en la consola
     Serial.println("Dispositivo configurado exitosamente");
 
-    // xTaskCreate(HeavyTasks, "HeavySensors", 4096, NULL, tskIDLE_PRIORITY, NULL);
     delay(3000);
 
     xTaskCreatePinnedToCore(FastSensors_Task, "FastSensors", 10000, NULL, 1, &FastSensors, 1);
-    /*  xTaskCreatePinnedToCore(SlowSensors_Task, "SlowSensors", 10000, NULL, 1,
-     &SlowSensors, 1); */
+    xTaskCreatePinnedToCore(SlowSensors_Task, "SlowSensors", 10000, NULL, 1, &SlowSensors, 1);
 }
 
 void loop()
 {
-
     if (buttonValue == 1)
     {
         Serial.println("encendiendo audio");
@@ -166,7 +337,7 @@ void loop()
     delay(1000);
 }
 
-void HeavyTasks(void *pvParameters)
+void SlowSensors_Task(void *pvParameters)
 {
     String toSave;
     for (;;)
@@ -242,8 +413,8 @@ void HeavyTasks(void *pvParameters)
             file.close();
         }
 
-        delay(1000);
-        // delay(1000 * 60 * 5); //Verificar posicion cada 5 minutos
+        // delay(1000);
+        delay(1000 * 60 * 5); // Verificar posicion cada 5 minutos
     }
 }
 
@@ -260,9 +431,9 @@ void FastSensors_Task(void *pvParameters)
     {
         int pirValue = readPIR();
         buttonValue = readButton();
-        float temp = dht.readTemperature();
+        // float temp = dht.readTemperature();
 
-        Serial.println("temperatura: "+String(temp));
+        // Serial.println("temperatura: " + String(temp));
 
         if (pirValue == 1)
         {
@@ -304,18 +475,23 @@ void FastSensors_Task(void *pvParameters)
             flowSum /= i;
             flowProm = (flowProm + flowSum) / 2;
             digitalWrite(BOMBA_PIN, HIGH);
-            /*
-            if (flowSum < 0.2) {
-                for (;;) {
+
+            if (flowSum < 0.2)
+            {
+                for (;;)
+                {
                     String json = getArduinoDataJson(getStatusJson("Perdida de flujo: " + String(flowProm), 1));
                     Serial.println(json);
 
-                    int res = sendHttpQuery(json);  // MANDAR DATA
+                    int res = sendHttpQuery(json); // MANDAR DATA
 
-                    if (res != 200) {
+                    if (res != 200)
+                    {
                         Serial.println("Fallo en la bomba no se pudo enviar");
                         continue;
-                    } else {
+                    }
+                    else
+                    {
                         Serial.println("Fallo en la bomba enviado");
                         break;
                     }
@@ -323,19 +499,20 @@ void FastSensors_Task(void *pvParameters)
                     delay(2000);
                 }
             }
-            */
+
             i = 0;
 
-            /* digitalWrite(RECUPERADOR_PIN, LOW);
+            digitalWrite(RECUPERADOR_PIN, LOW);
             Serial.println("Apagando BOMBA y prendiendo RECUPERADOR");
-/*
-            while (i++ <= recuperadorDelay) {
+
+            while (i++ <= recuperadorDelay)
+            {
                 delay(1000);
             }
             delay(100);
             digitalWrite(RECUPERADOR_PIN, HIGH);
             Serial.println("Apagando RECUPERADOR");
-            delay(1000); */
+            delay(1000);
         }
 
         delay(500);
