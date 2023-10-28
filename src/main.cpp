@@ -1,3 +1,25 @@
+// #define TIPO_AGUAS_GRISES
+#define TIPO_AGUAS_LLUVIA
+// #define TIPO_ATRAPA_NIEBLA
+//#define TIPO_ENDURECIMIENTO_SUELO
+
+#ifdef TIPO_AGUAS_GRISES
+#define tiempoBomba 9
+#define tiempoRecuperador 23
+#endif
+
+#ifdef TIPO_AGUAS_LLUVIA
+#define tiempoBomba 9
+#endif
+
+#ifdef TIPO_ATRAPA_NIEBLA
+#define tiempoBomba 9
+#endif
+
+#ifdef TIPO_ENDURECIMIENTO_SUELO
+#define tiempoBomba 9
+#endif
+
 #include <Arduino.h>
 
 // #include "BluetoothSerial.h"
@@ -16,9 +38,9 @@
 
 // pines de la maqueta
 // #define HUMIDIFICADOR_PIN 13
-#define BOMBA_PIN 25       //   7 en azul
-#define AUDIO_PIN 25       // 8    3 es 25
-#define RECUPERADOR_PIN 12 // 8    3 es 25
+#define BOMBA_PIN 25 //   7 en azul
+// #define AUDIO_PIN 25       // 8    3 es 25
+// #define RECUPERADOR_PIN 12 // 8    3 es 25
 
 #define ROCIADOR_PIN 26 //
 
@@ -45,7 +67,7 @@ void SlowSensors_Task(void *);
 
 void Ping();
 
-void correr()
+/* void correr()
 {
     Serial.println("AAAA");
     // Check if data is available from the SIM808 module
@@ -58,7 +80,7 @@ void correr()
     }
 
     // Your main code goes here
-}
+} */
 
 /* void sendATCommand(String command)
 {
@@ -157,22 +179,39 @@ void correr()
     // configureGPS();
 } */
 
-IPAddress localIP(192, 168, 1, 1); // Static IP address for the SoftAP
-IPAddress subnet(255, 255, 255, 0);
-void setupOTA(void *parameter)
+void setupOTA()
 {
-    Serial.println("Booting");
-    if(!WiFi.softAPConfig(localIP, localIP, subnet)){
-         Serial.println("bad softap ip...");
-    }
-    
-    WiFi.softAP(otaName, "cim12345");
-delay(5000);
-   /*  while (WiFi.isConnected() != WL_CONNECTED)
+#ifdef USE_GSM
+    WiFi.mode(WIFI_AP);
+
+#else // clave 2504KG.-
+    WiFi.mode(WIFI_AP_STA);
+
+    Serial.print("Attempting to connect to WPA SSID: ");
+    // Connect to WPA/WPA2 network:
+
+    WiFi.begin("Ficom", "2504KG.-");
+
+    Serial.println();
+    Serial.print("Connecting");
+    int max = 30;
+    while (WiFi.status() != WL_CONNECTED && max > 0)
     {
-        Serial.println("Connection Failed! Rebooting...");
-        delay(5000);
-    } */
+        max--;
+        delay(500);
+        Serial.print(".");
+    }
+
+#endif
+
+    WiFi.softAP(otaName, "Cim12345");
+    delay(1000);
+    IPAddress IP = IPAddress(10, 10, 10, 1);
+    IPAddress NMask = IPAddress(255, 255, 255, 0);
+    WiFi.softAPConfig(IP, IP, NMask);
+    IPAddress myIP = WiFi.softAPIP();
+    Serial.print("AP IP address: ");
+    Serial.println(myIP);
 
     // Port defaults to 8266
     // ArduinoOTA.setPort(8266);
@@ -202,12 +241,6 @@ delay(5000);
     Serial.println("Ready");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
-
-    while (true)
-    {
-        ArduinoOTA.handle();
-        // Other tasks or code here
-    }
 }
 
 void setup()
@@ -217,16 +250,19 @@ void setup()
     if (!setUpDataLogger())
     {
         delay(2000);
+
         ESP.restart();
     }
 
     delay(1000);
-    xTaskCreate(setupOTA, "OTAUpdateTask", 8192, NULL, 1, NULL);
+    setupOTA();
+    /* xTaskCreate(setupOTA, "OTAUpdateTask", 8192, NULL, 1, NULL); */
 
-    /*
-    if(!sim808.init()){
+#ifdef USAR_GSM
+    if (!sim808.init())
+    {
         Serial.println("Error al inicializar el GSM");
-    }*/
+    }
 
     Serial_SIM_Module.begin(BAUD_RATE, SERIAL_8N1, RX_PIN, TX_PIN); // Configura la velocidad de baudios del ESP32 UART
 
@@ -293,6 +329,7 @@ void setup()
             delay(1000);
         }
     }
+#endif
 
     // setup de los sensores
     FlowSensor();
@@ -300,14 +337,13 @@ void setup()
     PIRSensor();
 
     // setup de los actuadores
-    // pinMode(ROCIADOR_PIN, OUTPUT);
     pinMode(BOMBA_PIN, OUTPUT);
-    // pinMode(RECUPERADOR_PIN, OUTPUT);
-
-    // digitalWrite(RECUPERADOR_PIN, HIGH);
     digitalWrite(BOMBA_PIN, HIGH);
-    // pinMode(ROCIADOR_PIN, OUTPUT);
 
+#ifdef TIPO_AGUAS_GRISES
+    pinMode(RECUPERADOR_PIN, OUTPUT);
+    digitalWrite(RECUPERADOR_PIN, HIGH);
+#endif
     // Muestra en la consola
     Serial.println("Dispositivo configurado exitosamente");
 
@@ -319,6 +355,9 @@ void setup()
 
 void loop()
 {
+
+    ArduinoOTA.handle();
+   // Serial.println("BUTTON: " + String(buttonValue));
     if (buttonValue == 1)
     {
         Serial.println("encendiendo audio");
@@ -332,9 +371,10 @@ void loop()
         digitalWrite(BOMBA_PIN, LOW);
         delay(100);
         digitalWrite(BOMBA_PIN, HIGH);
+        //buttonValue = 0;
     }
 
-    delay(1000);
+    delay(100);
 }
 
 void SlowSensors_Task(void *pvParameters)
@@ -342,9 +382,11 @@ void SlowSensors_Task(void *pvParameters)
     String toSave;
     for (;;)
     {
+#ifdef USAR_GSM
         float lat, lon;
         String dist = "";
         getGPSPos(&lat, &lon);
+
         Serial.println("Latitud: " + String(lat, 12) + " Longitud: " + String(lon, 12));
 
         // Serial.println("Dato: " + toSave);
@@ -376,6 +418,7 @@ void SlowSensors_Task(void *pvParameters)
                 delay(5000);
             }
         }
+#endif
 
         // Serial.println("nextSchedule: "+ getDateTime(nextSchedule));
         if (nextSchedule <= checkLastTime())
@@ -387,8 +430,13 @@ void SlowSensors_Task(void *pvParameters)
                 {
                     stats += ",";
                 }
+#ifdef USE_GSM
+                String toSend = "[" + getPositionJson(lat, lon, 0) + "," + stats + getStatusJson("El flujo es: " + String(flowProm), flowProm > 0.2f ? 0 : 1) + "]";
+#else
+                String toSend = "[" + stats + getStatusJson("El flujo es: " + String(flowProm), flowProm > 0.2f ? 0 : 1) + "]";
+#endif
 
-                String json = getArduinoDataJson("[" + getPositionJson(lat, lon, 0) + "," + stats + getStatusJson(String(flowProm), 0) + "]");
+                String json = getArduinoDataJson(toSend);
                 Serial.println(json);
 
                 int res = sendHttpQuery(json); // MANDAR DATA
@@ -413,14 +461,14 @@ void SlowSensors_Task(void *pvParameters)
             file.close();
         }
 
-        // delay(1000);
-        delay(1000 * 60 * 5); // Verificar posicion cada 5 minutos
+        delay(1000 * 60);
+        //delay(1000 * 60 * 5); // Verificar posicion cada 5 minutos
     }
 }
 
 void FastSensors_Task(void *pvParameters)
 {
-    const int bombaDelay = 9, recuperadorDelay = 23;
+
     bool pirActivated = false;
 
     // probar
@@ -465,7 +513,7 @@ void FastSensors_Task(void *pvParameters)
 
             double flowSum = 0;
             int i = 0;
-            while (i++ < bombaDelay)
+            while (i++ < tiempoBomba)
             {
                 delay(1000);
                 flowSum += getFlow();
@@ -475,43 +523,46 @@ void FastSensors_Task(void *pvParameters)
             flowSum /= i;
             flowProm = (flowProm + flowSum) / 2;
             digitalWrite(BOMBA_PIN, HIGH);
+            buttonValue = 0;
 
             if (flowSum < 0.2)
             {
-                for (;;)
-                {
-                    String json = getArduinoDataJson(getStatusJson("Perdida de flujo: " + String(flowProm), 1));
-                    Serial.println(json);
+                 for (;;)
+                 {
+                     String json = getArduinoDataJson(getStatusJson("Perdida de flujo: " + String(flowProm), 1));
+                     Serial.println(json);
 
-                    int res = sendHttpQuery(json); // MANDAR DATA
+                     int res = sendHttpQuery(json); // MANDAR DATA
 
-                    if (res != 200)
-                    {
-                        Serial.println("Fallo en la bomba no se pudo enviar");
-                        continue;
-                    }
-                    else
-                    {
-                        Serial.println("Fallo en la bomba enviado");
-                        break;
-                    }
+                     if (res != 200)
+                     {
+                         Serial.println("Fallo en la bomba no se pudo enviar");
+                         continue;
+                     }
+                     else
+                     {
+                         Serial.println("Fallo en la bomba enviado");
+                         break;
+                     }
 
-                    delay(2000);
-                }
+                     delay(2000);
+                 }
             }
 
+#ifdef TIPO_AGUAS_GRISES
             i = 0;
 
             digitalWrite(RECUPERADOR_PIN, LOW);
             Serial.println("Apagando BOMBA y prendiendo RECUPERADOR");
 
-            while (i++ <= recuperadorDelay)
+            while (i++ <= tiempoRecuperador)
             {
                 delay(1000);
             }
             delay(100);
             digitalWrite(RECUPERADOR_PIN, HIGH);
             Serial.println("Apagando RECUPERADOR");
+#endif
             delay(1000);
         }
 
