@@ -1,6 +1,6 @@
 
 
-// #define USAR_GSM
+// #define USE_GSM
 
 #include <ArduinoHttpClient.h>
 /*
@@ -60,8 +60,8 @@ const char server[] = "mongo-arduino-cim.taicrosxy.workers.dev";
 const char resource[] = "/api/ArduinoData";
 const int port = 80;
 
-const String otaName = "Maqueta3AGUA";
-const int id = 3; // TODO CAMBIAR PARA CADA MAQUINA
+const String otaName = "Maqueta4Niebla";
+const int id = 4; // TODO CAMBIAR PARA CADA MAQUINA
 bool sendingHTTP = false;
 
 // mongoEndpointAPIKEY =  hDYzA5V8btEmWF0tH1Pe1E6MVolfd5QSzaVCmJjOaOxcGl9WUNdrW0bB54mHn3m8

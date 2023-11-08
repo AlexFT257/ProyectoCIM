@@ -3,6 +3,8 @@
 
 #include "FS.h"
 
+#define TEST_MODE
+
 #define SD_CS 5  // Se define el CS en el pin 5 y se nombra como SD_CS
 
 RTC_DS1307 rtc;
@@ -87,9 +89,11 @@ void saveToSDCard(String file, String toSave) {
 
 
 void setNextConection(int hoursInterval) {
-    nextSchedule = rtc.now().unixtime() + 60; //CHECK EVERY MINUTE
 
-    /* int currentHour = nextSchedule.hour();
+#ifdef TEST_MODE
+    nextSchedule = rtc.now().unixtime() + 60; //CHECK EVERY MINUTE
+#else
+    int currentHour = nextSchedule.hour();
     int nextHour = (currentHour + hoursInterval) % 24;  // Calculate the next hour
 
     // Calculate the next scheduled time based on the specified interval
@@ -98,7 +102,8 @@ void setNextConection(int hoursInterval) {
     // If the next hour is less than the current hour, it means we've crossed into the next day
     if (nextHour < currentHour) {
         nextSchedule = nextSchedule + TimeSpan(1, 0, 0, 0);  // Add one day
-    } */
+    }
+#endif
 }
 
 bool setUpDataLogger() {

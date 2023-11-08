@@ -1,4 +1,4 @@
-#include <DHT.h>
+
 
 unsigned long pulse_freq;  // Frequency of pulses (interrupt function)
 unsigned long currentTime;
@@ -8,9 +8,10 @@ unsigned long lastTime;
 #define PIR_PIN 27 //6 en azul
 #define BUTTON_PIN 13 //9 en azul
 
+#include <DHT.h>
+#define TIPO_ATRAPA_NIEBLA
 
 #ifdef TIPO_ATRAPA_NIEBLA
-
 #define DHT_PIN 14
 
 #define DHTTYPE DHT11

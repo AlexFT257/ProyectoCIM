@@ -1,7 +1,18 @@
 // #define TIPO_AGUAS_GRISES
-#define TIPO_AGUAS_LLUVIA
+//#define TIPO_AGUAS_LLUVIA
 // #define TIPO_ATRAPA_NIEBLA
+//#define TIPO_ATRAPA_NIEBLA
 //#define TIPO_ENDURECIMIENTO_SUELO
+
+#include <Arduino.h>
+
+// #include "BluetoothSerial.h"
+//  #include <DHT.h>
+#include <HardwareSerial.h> // Comunicación UART con el módulo SIM808
+#include <SPI.h>
+#include <Wire.h>
+
+#include "Sensores.h" // Funciones de configuración de los sensores
 
 #ifdef TIPO_AGUAS_GRISES
 #define tiempoBomba 9
@@ -13,20 +24,12 @@
 #endif
 
 #ifdef TIPO_ATRAPA_NIEBLA
-#define tiempoBomba 9
+#define tiempoBomba 5
 #endif
 
 #ifdef TIPO_ENDURECIMIENTO_SUELO
 #define tiempoBomba 9
 #endif
-
-#include <Arduino.h>
-
-// #include "BluetoothSerial.h"
-//  #include <DHT.h>
-#include <HardwareSerial.h> // Comunicación UART con el módulo SIM808
-#include <SPI.h>
-#include <Wire.h>
 
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
@@ -34,7 +37,6 @@
 #include "DataLogger.h"
 #include "GPRS.h"     // Funciones de configuración del GPRS
 #include "GPS.h"      //Funciones de GPS
-#include "Sensores.h" // Funciones de configuración de los sensores
 
 // pines de la maqueta
 // #define HUMIDIFICADOR_PIN 13
@@ -55,10 +57,11 @@ const int BAUD_RATE = 9600;
 int personasDetectadas = 0, botonesDetectados = 0, buttonValue = 0;
 
 float flowProm; // Promedio del flow
+String humedadTemp;
 
 TaskHandle_t FastSensors;
 TaskHandle_t SlowSensors;
-
+bool connectedInternet = false, stillPlaying = false;
 // GSM PIN
 #define GSM_PIN "1234"
 
@@ -179,7 +182,7 @@ void Ping();
     // configureGPS();
 } */
 
-void setupOTA()
+void setupOTA(void *pvParameters)
 {
 #ifdef USE_GSM
     WiFi.mode(WIFI_AP);
@@ -190,17 +193,21 @@ void setupOTA()
     Serial.print("Attempting to connect to WPA SSID: ");
     // Connect to WPA/WPA2 network:
 
-    WiFi.begin("Ficom", "2504KG.-");
-
+   // WiFi.begin("Ficom", "2504KG.-");
+ WiFi.begin("wifi-ubb", "soporte-dci");
     Serial.println();
     Serial.print("Connecting");
-    int max = 30;
-    while (WiFi.status() != WL_CONNECTED && max > 0)
+    /* int max = 30; */
+    while (WiFi.status() != WL_CONNECTED /* && max > 0 */)
     {
-        max--;
+        //Serial.println(WiFi.localIP());
+        /* max--; */
         delay(500);
         Serial.print(".");
     }
+
+
+    connectedInternet = true;
 
 #endif
 
@@ -241,6 +248,7 @@ void setupOTA()
     Serial.println("Ready");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+     vTaskDelete(NULL);
 }
 
 void setup()
@@ -255,8 +263,8 @@ void setup()
     }
 
     delay(1000);
-    setupOTA();
-    /* xTaskCreate(setupOTA, "OTAUpdateTask", 8192, NULL, 1, NULL); */
+    /* setupOTA(); */
+    xTaskCreate(setupOTA, "OTAUpdateTask", 4096, NULL, 1, NULL);
 
 #ifdef USAR_GSM
     if (!sim808.init())
@@ -333,8 +341,11 @@ void setup()
 
     // setup de los sensores
     FlowSensor();
-    // DHTSensor();
     PIRSensor();
+    
+#ifdef TIPO_ATRAPA_NIEBLA
+    DHTSensor();
+#endif
 
     // setup de los actuadores
     pinMode(BOMBA_PIN, OUTPUT);
@@ -344,6 +355,7 @@ void setup()
     pinMode(RECUPERADOR_PIN, OUTPUT);
     digitalWrite(RECUPERADOR_PIN, HIGH);
 #endif
+
     // Muestra en la consola
     Serial.println("Dispositivo configurado exitosamente");
 
@@ -371,6 +383,7 @@ void loop()
         digitalWrite(BOMBA_PIN, LOW);
         delay(100);
         digitalWrite(BOMBA_PIN, HIGH);
+        stillPlaying = false;
         //buttonValue = 0;
     }
 
@@ -382,6 +395,7 @@ void SlowSensors_Task(void *pvParameters)
     String toSave;
     for (;;)
     {
+        
 #ifdef USAR_GSM
         float lat, lon;
         String dist = "";
@@ -432,8 +446,14 @@ void SlowSensors_Task(void *pvParameters)
                 }
 #ifdef USE_GSM
                 String toSend = "[" + getPositionJson(lat, lon, 0) + "," + stats + getStatusJson("El flujo es: " + String(flowProm), flowProm > 0.2f ? 0 : 1) + "]";
-#else
-                String toSend = "[" + stats + getStatusJson("El flujo es: " + String(flowProm), flowProm > 0.2f ? 0 : 1) + "]";
+#else       
+
+    #ifdef TIPO_ATRAPA_NIEBLA
+                String toSend = "[" + stats + getStatusJson("El flujo es: " + String(flowProm)  + " \nLa humedad y temperatura es: " + String(humedadTemp), flowProm > 0.2f ? 0 : 1) + "]";
+    #else
+                String toSend = "[" + stats + getStatusJson("El flujo es: " + String(flowProm) , flowProm > 0.2f ? 0 : 1) + "]";
+    #endif
+
 #endif
 
                 String json = getArduinoDataJson(toSend);
@@ -460,9 +480,14 @@ void SlowSensors_Task(void *pvParameters)
             File file = SD.open(statFile.c_str(), FILE_WRITE);
             file.close();
         }
-
+#ifdef TEST_MODE
         delay(1000 * 60);
-        //delay(1000 * 60 * 5); // Verificar posicion cada 5 minutos
+#elif USE_GSM
+        delay(1000 * 60 * 5); // Verificar posicion cada 5 minutos
+#else
+         delay(1000 * 60 * 60); // Verificar posicion cada 5 minutos
+#endif
+
     }
 }
 
@@ -478,7 +503,7 @@ void FastSensors_Task(void *pvParameters)
     for (;;)
     {
         int pirValue = readPIR();
-        buttonValue = readButton();
+        buttonValue = readButton() && !stillPlaying;
         // float temp = dht.readTemperature();
 
         // Serial.println("temperatura: " + String(temp));
@@ -502,6 +527,7 @@ void FastSensors_Task(void *pvParameters)
 
         if (buttonValue == 1)
         {
+            stillPlaying = true;
             delay(2000);
             botonesDetectados++;
             // se guarda la estadistica del boton pulsado
@@ -520,12 +546,20 @@ void FastSensors_Task(void *pvParameters)
                 Serial.println("Flujo promedio: " + String(flowSum / i));
             }
 
+
+
             flowSum /= i;
             flowProm = (flowProm + flowSum) / 2;
+            #ifdef TIPO_ATRAPA_NIEBLA
+            float temp, hum;
+            getTemperatureAndHumidity(&temp, &hum);
+            
+            humedadTemp = String(temp)+"°" + String(hum) + "%";
+            #endif
             digitalWrite(BOMBA_PIN, HIGH);
             buttonValue = 0;
 
-            if (flowSum < 0.2)
+            if (flowSum < 0.2 && connectedInternet)
             {
                  for (;;)
                  {
