@@ -42,7 +42,7 @@
 // #define HUMIDIFICADOR_PIN 13
 #define BOMBA_PIN 25 //   7 en azul
 // #define AUDIO_PIN 25       // 8    3 es 25
-// #define RECUPERADOR_PIN 12 // 8    3 es 25
+#define RECUPERADOR_PIN 12 // 8    3 es 25
 
 #define ROCIADOR_PIN 26 //
 
@@ -377,7 +377,22 @@ void loop()
         delay(100);
         digitalWrite(BOMBA_PIN, HIGH);
 
+        #ifdef TIPO_AGUAS_LLUVIA
+        delay(32000); // el audio dura 32 segundos
+        #endif
+
+        #ifdef TIPO_AGUAS_GRISES
+        delay(40000); // el audio dura 40 segundos
+        #endif
+
+        #ifdef TIPO_ATRAPA_NIEBLA
+        delay(32000); // el audio dura 32 segundos
+        #endif
+
+        #ifdef TIPO_ENDURECIMIENTO_SUELO
         delay(20000); // DEPNDE DE CUANTO DURA EL AUDIO
+        #endif
+
 
         Serial.println("encendiendo audio");
         digitalWrite(BOMBA_PIN, LOW);
