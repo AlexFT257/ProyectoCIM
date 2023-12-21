@@ -3,7 +3,7 @@
 
 #include "FS.h"
 
-#define TEST_MODE
+//#define TEST_MODE
 
 #define SD_CS 5  // Se define el CS en el pin 5 y se nombra como SD_CS
 
