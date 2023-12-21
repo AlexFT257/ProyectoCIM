@@ -60,8 +60,30 @@ const char server[] = "mongo-arduino-cim.taicrosxy.workers.dev";
 const char resource[] = "/api/ArduinoData";
 const int port = 80;
 
-const String otaName = "Maqueta4Niebla";
+
+#ifdef TIPO_AGUAS_GRISES
+const String tipo = "AguasGris";
+const int id = 1; // TODO CAMBIAR PARA CADA MAQUINA
+#endif
+
+#ifdef TIPO_AGUAS_LLUVIA
+const String tipo = "AguasLluvia";
+const int id = 2; // TODO CAMBIAR PARA CADA MAQUINA
+#endif
+
+#ifdef TIPO_ATRAPA_NIEBLA
+const String tipo = "AtrapaNiebla";
+const int id = 3; // TODO CAMBIAR PARA CADA MAQUINA
+#endif
+
+#ifdef TIPO_ENDURECIMIENTO_SUELO
+const String tipo = "EndurecimientoSuelo";
 const int id = 4; // TODO CAMBIAR PARA CADA MAQUINA
+#endif
+
+//const int id = 1; // TODO CAMBIAR PARA CADA MAQUINA
+
+const String otaName = "Maqueta"+String(id)+tipo;
 bool sendingHTTP = false;
 
 // mongoEndpointAPIKEY =  hDYzA5V8btEmWF0tH1Pe1E6MVolfd5QSzaVCmJjOaOxcGl9WUNdrW0bB54mHn3m8

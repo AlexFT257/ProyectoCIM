@@ -10,9 +10,9 @@ unsigned long lastTime;
 
 #include <DHT.h>
 
-#define TIPO_AGUAS_GRISES
+//#define TIPO_AGUAS_GRISES
 //#define TIPO_AGUAS_LLUVIA
-// #define TIPO_ATRAPA_NIEBLA
+#define TIPO_ATRAPA_NIEBLA
 //#define TIPO_ENDURECIMIENTO_SUELO
 
 #ifdef TIPO_ATRAPA_NIEBLA

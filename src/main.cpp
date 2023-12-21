@@ -54,14 +54,14 @@
        // configurar la variable "mySerial"
 const int BAUD_RATE = 9600;
 
-int personasDetectadas = 0, botonesDetectados = 0, buttonValue = 0;
+int personasDetectadas = 0, botonesDetectados = 0;
 
 float flowProm; // Promedio del flow
 String humedadTemp;
 
 TaskHandle_t FastSensors;
 TaskHandle_t SlowSensors;
-bool connectedInternet = false, stillPlaying = false;
+bool connectedInternet = false, stillPlaying = false, buttonValue = false;
 // GSM PIN
 #define GSM_PIN "1234"
 
@@ -186,30 +186,7 @@ void setupOTA(void *pvParameters)
 {
 #ifdef USE_GSM
     WiFi.mode(WIFI_AP);
-
-#else // clave 2504KG.-
-    WiFi.mode(WIFI_AP_STA);
-
-    Serial.print("Attempting to connect to WPA SSID: ");
-    // Connect to WPA/WPA2 network:
-
-   // WiFi.begin("Ficom", "2504KG.-");
- WiFi.begin("wifi-ubb", "soporte-dci");
-    Serial.println();
-    Serial.print("Connecting");
-    /* int max = 30; */
-    while (WiFi.status() != WL_CONNECTED /* && max > 0 */)
-    {
-        //Serial.println(WiFi.localIP());
-        /* max--; */
-        delay(500);
-        Serial.print(".");
-    }
-
-
-    connectedInternet = true;
-
-#endif
+    
 
     WiFi.softAP(otaName, "Cim12345");
     delay(1000);
@@ -223,7 +200,7 @@ void setupOTA(void *pvParameters)
     // Port defaults to 8266
     // ArduinoOTA.setPort(8266);
 
-    // Hostname defaults to esp8266-[ChipID]
+    // Hostname d<efaults to esp8266-[ChipID]
     // ArduinoOTA.setHostname("myesp8266");
 
     // No authentication by default
@@ -248,11 +225,124 @@ void setupOTA(void *pvParameters)
     Serial.println("Ready");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
-     vTaskDelete(NULL);
+#else // clave 2504KG.-
+    WiFi.mode(WIFI_AP_STA);
+    
+
+    WiFi.softAP(otaName, "Cim12345");
+    delay(1000);
+    IPAddress IP = IPAddress(10, 10, 10, 1);
+    IPAddress NMask = IPAddress(255, 255, 255, 0);
+    WiFi.softAPConfig(IP, IP, NMask);
+    IPAddress myIP = WiFi.softAPIP();
+    Serial.print("AP IP address: ");
+    Serial.println(myIP);
+
+    // Port defaults to 8266
+    // ArduinoOTA.setPort(8266);
+
+    // Hostname d<efaults to esp8266-[ChipID]
+    // ArduinoOTA.setHostname("myesp8266");
+
+    // No authentication by default
+    // ArduinoOTA.setPassword((const char *)"123");
+
+    ArduinoOTA.onStart([]()
+                       { Serial.println("Start"); });
+    ArduinoOTA.onEnd([]()
+                     { Serial.println("\nEnd"); });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
+                          { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); });
+    ArduinoOTA.onError([](ota_error_t error)
+                       {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed"); });
+
+    ArduinoOTA.begin();
+    Serial.println("Ready");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+    
+    Serial.print("Attempting to connect to WPA SSID: ");
+    // Connect to WPA/WPA2 network:
+
+   // WiFi.begin("Ficom", "2504KG.-");
+ WiFi.begin("wifi-ubb", "soporte-dci");
+    Serial.println();
+    Serial.print("Connecting");
+    /* int max = 30; */
+    while (WiFi.status() != WL_CONNECTED /* && max > 0 */)
+    {
+        //Serial.println(WiFi.localIP());
+        /* max--; */
+        delay(500);
+        Serial.print(".");
+    }
+
+
+    connectedInternet = true;
+
+#endif
+
+     while (true)
+    {
+        if(WiFi.status() != WL_CONNECTED){
+            connectedInternet = false;
+            delay(5000);
+        }else{
+            connectedInternet = true;
+        }
+
+        //Serial.println(WiFi.localIP());
+        /* max--; */
+        delay(10000);
+    }
+
+     while(!connectedInternet){
+        delay(1000);
+    }
+
+
+    for (;;) {
+        String json = getArduinoDataJson(getStatusJson("Encendida", 0));
+        Serial.println(json);
+
+        int res = sendHttpQuery(json); // MANDAR DATA
+
+        if (res != 200)
+        {
+            Serial.println("Fallo en la bomba no se pudo enviar");
+            continue;
+        }
+        else
+        {
+            Serial.println("Fallo en la bomba enviado");
+            break;
+        }
+
+        delay(2000);
+    }
+
+
 }
+
 
 void setup()
 {
+    
+    // setup de los actuadores
+    pinMode(BOMBA_PIN, OUTPUT);
+    digitalWrite(BOMBA_PIN, HIGH);
+    delay(1000);
+
+    digitalWrite(BOMBA_PIN, LOW);
+    delay(100);
+    digitalWrite(BOMBA_PIN, HIGH);
+    
     Serial.begin(BAUD_RATE); // Establece la velocidad de baudios de la consola
 
     if (!setUpDataLogger())
@@ -347,10 +437,6 @@ void setup()
     DHTSensor();
 #endif
 
-    // setup de los actuadores
-    pinMode(BOMBA_PIN, OUTPUT);
-    digitalWrite(BOMBA_PIN, HIGH);
-
 #ifdef TIPO_AGUAS_GRISES
     pinMode(RECUPERADOR_PIN, OUTPUT);
     digitalWrite(RECUPERADOR_PIN, HIGH);
@@ -363,6 +449,9 @@ void setup()
 
     xTaskCreatePinnedToCore(FastSensors_Task, "FastSensors", 10000, NULL, 1, &FastSensors, 1);
     xTaskCreatePinnedToCore(SlowSensors_Task, "SlowSensors", 10000, NULL, 1, &SlowSensors, 1);
+
+
+   
 }
 
 void loop()
@@ -370,7 +459,7 @@ void loop()
 
     ArduinoOTA.handle();
    // Serial.println("BUTTON: " + String(buttonValue));
-    if (buttonValue == 1)
+    if (buttonValue)
     {
         Serial.println("encendiendo audio");
         digitalWrite(BOMBA_PIN, LOW);
@@ -386,11 +475,11 @@ void loop()
         #endif
 
         #ifdef TIPO_ATRAPA_NIEBLA
-        delay(32000); // el audio dura 32 segundos
+        delay(33000); // el audio dura 32 segundos
         #endif
 
         #ifdef TIPO_ENDURECIMIENTO_SUELO
-        delay(20000); // DEPNDE DE CUANTO DURA EL AUDIO
+        delay(55000); // DEPNDE DE CUANTO DURA EL AUDIO
         #endif
 
 
@@ -464,7 +553,7 @@ void SlowSensors_Task(void *pvParameters)
 #else       
 
     #ifdef TIPO_ATRAPA_NIEBLA
-                String toSend = "[" + stats + getStatusJson("El flujo es: " + String(flowProm)  + " \nLa humedad y temperatura es: " + String(humedadTemp), flowProm > 0.2f ? 0 : 1) + "]";
+                String toSend = "[" + stats + getStatusJson("El flujo es: " + String(flowProm)  + "  La humedad y temperatura es: " + String(humedadTemp), flowProm > 0.2f ? 0 : 1) + "]";
     #else
                 String toSend = "[" + stats + getStatusJson("El flujo es: " + String(flowProm) , flowProm > 0.2f ? 0 : 1) + "]";
     #endif
@@ -518,7 +607,7 @@ void FastSensors_Task(void *pvParameters)
     for (;;)
     {
         int pirValue = readPIR();
-        buttonValue = readButton() && !stillPlaying;
+        buttonValue = readButton() == 1 && !stillPlaying;
         // float temp = dht.readTemperature();
 
         // Serial.println("temperatura: " + String(temp));
@@ -540,7 +629,7 @@ void FastSensors_Task(void *pvParameters)
             pirActivated = false;
         }
 
-        if (buttonValue == 1)
+        if (buttonValue)
         {
             stillPlaying = true;
             delay(2000);
@@ -572,7 +661,7 @@ void FastSensors_Task(void *pvParameters)
             humedadTemp = String(temp)+"°" + String(hum) + "%";
             #endif
             digitalWrite(BOMBA_PIN, HIGH);
-            buttonValue = 0;
+            buttonValue = false;
 
             if (flowSum < 0.2 && connectedInternet)
             {

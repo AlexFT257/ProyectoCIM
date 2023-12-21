@@ -113,10 +113,9 @@ bool setUpDataLogger() {
         return false;
     }
 
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    lastValidDate = DateTime(F(__DATE__), F(__TIME__));
-
-    if (!rtc.isrunning()) {
+    bool finalClock = false; // activar cuando se tenga que poner la hora
+    
+    if (finalClock) {
         rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
         lastValidDate = DateTime(F(__DATE__), F(__TIME__));
     } else {
