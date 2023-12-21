@@ -1,6 +1,6 @@
 
 
-// #define USE_GSM
+#define USE_GSM
 
 #include <ArduinoHttpClient.h>
 /*
